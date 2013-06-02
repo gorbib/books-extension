@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="module" version="2.5.0" method="upgrade">
+	<name>Продление книг, форма</name>
+	<creationDate>20 April 2013</creationDate>
+	<author>Polyskalov</author>
+	<authorEmail>contact@polyskalov.com</authorEmail>
+	<authorUrl>http://polyskalov.com</authorUrl>
+	<copyright>Polyskalov</copyright>
+	<license>GPL v3</license>
+	<version>0.0.1</version>
+	<description>Модуль продления книги. Для библиотек</description>
+	
+	<files>
+		<filename module="mod_books_extension">mod_books_extension.php</filename>
+		<filename>mod_books_extension_class.php</filename>
+		<filename>mod_books_extension.xml</filename>
+		<filename>install.sql</filename>
+	</files>
+
+	 <install>
+		<sql>
+			<file driver="mysql" charset="utf8">install.sql</file>
+		</sql>  
+	</install>
+</extension>
