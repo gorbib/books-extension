@@ -1,1 +1,1 @@
-DROP TABLE `booksextension`;
+DROP TABLE `#__booksextension`;
