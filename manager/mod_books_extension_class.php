@@ -1,46 +1,60 @@
 <?php
 
 class Book_extension  extends JObject {
+	/**
+	 * Объект для взаимодействия с базой данных
+	 * @var Object
+	 */
 	protected $_db;
 
-	// Уведомлять ли по электропочте
+	/**
+	 * Уведомлять ли пользователя по электропочте
+	 * @var boolean
+	 */
 	private static $notificateByEmail = true;
 
-	// Если пользователь — редактор, (переменная = true)
-	public static $isEditor;
+	/**
+	 * Подпись в уведомительном письме электропочты
+	 * @var string
+	 */
+	private static $email_signature = '<br><p>-- <br>Качканарская городская библиотека им. Ф. Т. Селянина<br>Адрес: 5а мкр.&nbsp;7а&nbsp;дом. Тел: (+7 34341)&nbsp;6–02–99.<br>Сайт: <a href="http://gorbib.org.ru">http://gorbib.org.ru</a></p>';
 
-	// Группа администраторов
-	public static $allowedUserGroup = 9;
+	/**
+	 * Имя таблицы с данными модуля в базе данных
+	 * @var string
+	 */
+	private $_db_tablename = 'booksextension';
+
+	/**
+	 * Удалять ли заявку из базы данных после обработки
+	 * (При отключёнии, записи в базе данных можно использовать как логи)
+	 * @var boolean
+	 */
+	private static $removeOnProcessed = false;
 
 
+	/**
+	 * Инициализация модуля
+	 */
 	function __construct() {
-		jimport('joomla.access.access');
-
-		$user = JFactory::getUser();
-
-		$userGroup = JAccess::getGroupsByUser($user->id);
-
-		$this-> isEditor = true;
-		//($_SERVER['REMOTE_ADDR'] == '192.168.0.107');
-
 		$this->_db = JFactory::getDbo();
 	}
 
-	// Отправка уведомления на почту
-	public function notificate($requestID, $status, $reason = '') {
-		$headers  = "From: gorbib@yandex.ru\r\n"; 
-		$headers .= "Content-type: text/html;charset=utf-8\r\n";
+	/**
+	 * Отправка уведомления пользователю на электропочту
+	 * @param  array   $requestData Информация заявки
+	 * @param  boolean $accepted    Статус обработки (продления)
+	 * @param  string  $comment     Комментарий администратора
+	 * @return boolean              Статус отправки сообщения
+	 */
+	public function notificate($requestData, $accepted, $comment = '') {
 
-		$data = $this-> getRequest($requestID);
+		if( !self::$notificateByEmail ) return;
 
-		if ( empty($data) ) return false;
-
-		$email = $data['email'];
-		$name  = $data['name'];
-
+		$email = $requestData['email'];
+		$name  = $requestData['name'];
 
 		if ( empty($email) ) return false;
-
 		if ( empty($name) ) $name = 'Дорогой читатель';
 
 		// Сообщения, отправляемые пользователю
@@ -48,106 +62,92 @@ class Book_extension  extends JObject {
 			// Продлено
 			'accepted' => array(
 				'subject' => 'Книга продлена',
-				'text'    => "<p>Здравствуйте, $name. </p><br><p>Мы обработали Вашу заявку и продлили книгу <i>{$data['book']}</i>. Приятного чтения.</p> <br> -- <br> С уважением, Качканарская городская бибилиотека им. Ф. Т. Селянина."
+				'text'    => "<p>Здравствуйте, $name. </p><br><p>Мы обработали Вашу заявку и продлили книгу <i>{$requestData['book']}</i>. Приятного чтения.</p>"
 			),
 			// Не продлено
 			'rejected' => array(
 				'subject' => 'Книга НЕ продлена',
-				'text'    => "<p>Здравствуйте, $name. </p><br><p>К сожалению, не удалось продлить книгу <i>{$data['book']}</i>. </p><p>Вы можете узнать причину и продлить книгу, позвонив по номеру 6-02-99</p><br> -- \n<br> С уважением, Качканарская городская бибилиотека им. Ф. Т. Селянина."
+				'text'    => "<p>Здравствуйте, $name. </p><br><p>К сожалению, мы не продлили книгу <i>{$requestData['book']}</i>. Для получения подробной информации свяжитесь с библиотекой.</p>"
 		));
 		
-		$statusAsText = ( $status? 'accepted' :'rejected' );
+		$statusAsText = ( $accepted? 'accepted' :'rejected' );
 
-		return mail($email, $Messages[$statusAsText]['subject'].'. Качканарская городская библиотека им. Ф. Т. Селянина', $Messages[$statusAsText]['text'], $headers);
-	}
 
-	// Добавить новую заявку
-	public function addRequest($name, $email, $book) {
-		$name   = htmlspecialchars($name);
-		$email  = htmlspecialchars($email);
-		$book   = htmlspecialchars($book);
+		// Заголовки письма
+		$headers  = "From: gorbib@yandex.ru\r\n"; 
+		$headers .= "Content-type: text/html;charset=utf-8\r\n";
 
-		if(!empty($name) && !empty($email) && !empty($book)) {
-			$this->_db->setQuery("INSERT INTO `booksextension` (`name`, `email`, `book`) VALUES ('$name',  '$email',  '$book');");
-			return $this->_db->execute();
-		} else throw new Book_extension_exception('Не все поля были заполнены! Повторите снова.');
-	}
-
-	/**
-	 * @desc Одобрить заявку (продлить книгу)
-	 * 
-	 * @param <int> $requestID Уникальный номер запроса в базе данных
-	 * 
-	 * @return <boolean> Статус одобрения (удалось или нет)
-	 */
-	public function acceptRequest($requestID) {
-		$requestID = intval($requestID);
-
-		if ( empty($requestID) ) return false;
-
-		$this->_db->setQuery("UPDATE `booksextension` SET `processed` = '1' WHERE `id` = '$requestID';");
-		return $this->_db->execute();
-
+		// Собственно, отправка
+		return mail(
+			$email,
+			'['.$Messages[$statusAsText]['subject'].'] Качканарская городская библиотека им. Ф. Т. Селянина',
+			$Messages[$statusAsText]['text'].(!empty($comment)? "<blockquote><p>Комментарий библиотекаря:</p><p><cite>$comment</cite></p></blockquote>": '').(!empty(self::$email_signature)? self::$email_signature: ''),
+			$headers
+		);
 	}
 
 	/**
-	 * @desc Одобрить заявку (продлить книгу)
-	 * 
-	 * @param <int> $requestID Уникальный номер запроса в базе данных
-	 * 
-	 * @return <boolean> Статус одобрения (удалось или нет)
+	 * Обработать заявку
+	 * @param  integer $requestID Номер заявки в базе данных
+	 * @param  boolean $accepted  Статус обработки (продления)
+	 * @return boolean            Статус исполнения запроса
 	 */
-	public function discardRequest($requestID) {
+	public function processRequest($requestID, $accepted = true) {
+
 		$requestID = intval($requestID);
+		
+		if (self::$removeOnProcessed) {
+			$this->_db->setQuery("DELETE FROM `#__{$this->_db_tablename}` WHERE `id` = '$requestID';");
+		} else {
+			$this->_db->setQuery("UPDATE `#__{$this->_db_tablename}` SET `processed` = '1', `accepted` = '$accepted' WHERE `id` = '$requestID';");
+		}
 
-		if ( empty($requestID) ) return false;
-
-		$this->_db->setQuery("UPDATE `booksextension` SET `processed` = '1' WHERE `id` = '$requestID';");
 		return $this->_db->execute();
 	}
 
 	/**
-	 * @desc Получить запрос на продление (один) из базы данных
-	 * 
-	 * @param <int> $requestID Уникальный номер запроса в базе данных
-	 * 
-	 * @return <array/boolean> Поля с данными запроса/false в случае неудачи
+	 * Вывести из базы данных одну заявку на продление
+	 * @param  integer $requestID Номер заявки в базе данных
+	 * @return array              Массив с данными заявки
 	 */
 	public function getRequest($requestID) {
-		if ( empty($requestID) ) return false;
 
-		$this->_db->setQuery("SELECT * FROM `booksextension`  WHERE `id` = '$requestID' LIMIT 1;");
-		$requestInfo = $this->_db->loadAssoc();
-		
+		$requestID = intval($requestID);
 
-		if ( $requestInfo ) {
-			return $requestInfo;
-		} else return false;
+		$this->_db->setQuery("SELECT * FROM `#__{$this->_db_tablename}` WHERE `id` = '$requestID' LIMIT 1;");
+
+		return $this->_db->loadAssoc();
 	}
 
 	/**
-	 * @desc Получить запрос на продление (один) из базы данных
-	 * 
-	 * @param <int> $limit Ограничение на количество выводимых записей
-	 * @param <boolean> $all Если true, то выводит все, даже обработанные заявки
-	 * 
-	 * @return <array/boolean> Поля с данными запроса/false в случае неудачи
+	 * Вывести из базы данных список заявок на продление
+	 * @param  integer $limit         Ограничение на количество доставаемых из базы данных записей
+	 * @param  boolean $withProcessed Если «true» — выводит все заявки, в том числе обработанные
+	 * @return array                  Массив с данными заявок или false в случае ошибки
 	 */
-	public function getRequests($limit = 10, $all = false) {
-		if (! $this-> isEditor ) return false;
+	public function getRequests($limit = 5, $withProcessed = false) {
 
-		$this->_db->setQuery("SELECT * FROM `booksextension` ".(!$all? "WHERE `processed` = '0'": '').($limit? " LIMIT $limit": '').';');
+		$this->_db->setQuery("SELECT * FROM `#__{$this->_db_tablename}` ".(!$withProcessed? "WHERE `processed` = '0'": '').($limit? " LIMIT $limit": '').';');
 		
-		$response = $this->_db->loadAssocList();
-		//$count = $this->_db->getNumRows();
-		
-		if ( !empty($response) ) return array('list'=>$response);
+		return $this->_db->loadAssocList();
 	}
 
-	public function test($value='') {
-		
+	/**
+	 * Получить количество всех заявок в базе данных
+	 * @param  boolean $withProcessed Если «true» — считать все заявки, в том числе обработанные
+	 * @return integer                Количество записей
+	 */
+	public function getRequestsCount($withProcessed = false) {
+		$this->_db->setQuery("SELECT * FROM `#__{$this->_db_tablename}` ".(!$withProcessed? "WHERE `processed` = '0'": ''));
+		$this->_db->query();
+		return $this->_db->getNumRows();
 	}
 }
 
-
 class Book_extension_exception extends Exception { }
+
+
+function declOfNum($number, $titles) {
+	$cases = array (2, 0, 1, 1, 1, 2);
+	return $titles[ ($number%100>4 && $number%100<20)? 2 : $cases[min($number%10, 5)] ];
+}
