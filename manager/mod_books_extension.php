@@ -1,89 +1,68 @@
-<style>
-#mod_book_ext_form_user table {
-	width:100%;
-
-}
-
-#mod_book_ext_form_user table input {
-	width:70%;
-}
-
-#mod_book_ext_form_requests ul li {
-	list-style: none;
-	list-style-type: none;
-
-	padding-bottom: 1em;
-}
-</style>
-
-
 <?php
+
+defined('_JEXEC') or die('Restricted access');
 
 require 'mod_books_extension_class.php';
 
 $bookExtModule = new Book_extension;
 
-switch ( $_GET['book_ext_action'] ) {
+$abonements = array('Младший', 'Юношеский', 'Старший');
 
-	// Обработка запроса на продление
-	case 'accept':
-		if(! $bookExtModule->isEditor) break;
+if ( isset($_GET['book_ext_action']) ) {
 
-		$requestsToAccept = $_POST['requests'];
+	$accepted = ($_GET['book_ext_action'] == 'accept');
 
-		if(isset($requestsToAccept)) {
-			foreach ($requestsToAccept as $requestID) {
-				
-				if ($bookExtModule-> acceptRequest($requestID)) {
+	$requestsToProcess = $_REQUEST['requests'];
 
-					// Уведомим пользователя
-					$bookExtModule-> notificate($requestID, 1);
-				}
-			}
-		}
+	if( isset($requestsToProcess) ) {
+		foreach ($requestsToProcess as $requestID) {
 
-	break;
+			// Достанем данные заявки
+			$request = $bookExtModule->getRequest($requestID);
+			
+			// Обработаем заявку
+			if ($bookExtModule-> processRequest($requestID, $accepted)) {
 
-	case 'discard':
-
-		//echo "Sorry this function is temponary not available.";
-		if(! $bookExtModule->isEditor) break;
-
-		$requestsToDiscard = intval($_GET['request']);
-
-		if(isset($requestsToDiscard)) {
-			if ($bookExtModule-> discardRequest($requestsToDiscard)) {
 				// Уведомим пользователя
-				$bookExtModule-> notificate($requestsToDiscard, 0);
+				$bookExtModule-> notificate($request, $accepted);
 			}
-				
-		}
 
-	break;
-	
-	default:
-		# code...
-	break;
-} ?>
+			// Очистим переменную с данными, дабы не засорять память
+			unset($request);
+		}
+	}
+}
+?>
 
 <form id="mod_book_ext_form_requests" method="post" action="?book_ext_action=accept">
-	<h1>Список заявок</h1>
+	<?php
 
-	<ul>
-<?php
-
-$requests = $bookExtModule->getRequests();
-//print_r($request);
-if($requests) {
-	//echo "<p>{$requests['count']} заявок</p>";
-	foreach ($requests['list'] as $request) {
-		?>
-		<li><input type="checkbox" name="requests[]" value="<?=$request['id']?>"><date style="color:grey"><?=$request['date']?></date>, <a href="mailto:<?=$request['email']?>"><?=$request['name']?></a> запросил(а) продление книги <strong><?=$request['book']?></strong> <a href="<?=JURI::current()?>?book_ext_action=discard&amp;request=<?=$request['id']?>" title="Отклонить">&times;</a></li>
-		<?php
+	$requestsCount = $bookExtModule->getRequestsCount();
+	if ( $requestsCount ) {
+		JToolBarHelper::title( $requestsCount.' '.declOfNum($requestsCount, array('непроверенная заявка', 'непроверенных заявки', 'непроверенных заявок')).' на продление' );
 	}
-	echo '<button type="submit">Продлить выделенные заявки</button>';
-} else echo '<p>Все заявки обработаны!</p>';
 
-?>
-</ul>
+
+	$requests = $bookExtModule->getRequests();
+	if($requests) {
+
+		echo '<table class="adminlist"><thead><tr><th>#</th><th>Дата</th><th>Пользователь</th><th>Абонемент</th><th>Книга</th><th>&hellip;</th></thead>';
+
+		foreach ($requests as $request) {
+			?>
+			<tr>
+				<td><input type="checkbox" name="requests[]" value="<?=$request['id']?>" title="#<?=$request['id']?>"></td>
+				<td><date style="color:grey"><?=$request['date']?></date></td>
+				<td><a href="mailto:<?=$request['email']?>" title="IP: <?=$request['ip']?>"><?=$request['name']?></a></td>
+				<td class="center"><?=$abonements[ $request['abonement'] ]?></td>
+				<td><?=$request['book']?></td>
+				<td><a href="<?=JURI::current()?>?book_ext_action=discard&amp;requests[]=<?=$request['id']?>" title="Отклонить">&times;</a></td>
+			</tr>
+			<?php
+		}
+		echo '</table><p><button type="submit">Продлить выделенные заявки</button></p>';
+
+	} else echo '<p style="margin:30px;text-align:center">Отлично, все заявки обработаны!</p>';
+
+	?>
 </form>
