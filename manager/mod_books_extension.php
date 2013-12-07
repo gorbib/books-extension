@@ -46,7 +46,7 @@ if ( isset($_GET['book_ext_action']) ) {
 	$requests = $bookExtModule->getRequests();
 	if($requests) {
 
-		echo '<table class="adminlist"><thead><tr><th>#</th><th>Дата</th><th>Пользователь</th><th>Абонемент</th><th>Книга</th><th>&hellip;</th></thead>';
+		echo '<table class="adminlist"><thead><tr><th>#</th><th>Дата</th><th>Пользователь</th>'.(($bookExtModule->enable_abonement)? '<th>Абонемент</th>':'').'<th>Книга</th><th>&hellip;</th></thead>';
 
 		foreach ($requests as $request) {
 			?>
@@ -54,7 +54,9 @@ if ( isset($_GET['book_ext_action']) ) {
 				<td><input type="checkbox" name="requests[]" value="<?=$request['id']?>" title="#<?=$request['id']?>"></td>
 				<td><date style="color:grey"><?=$request['date']?></date></td>
 				<td><a href="mailto:<?=$request['email']?>" title="IP: <?=$request['ip']?>"><?=$request['name']?></a></td>
+				<?php if ($bookExtModule->enable_abonement) { ?>
 				<td class="center"><?=$abonements[ $request['abonement'] ]?></td>
+				<?php } ?>
 				<td><?=$request['book']?></td>
 				<td><a href="<?=JURI::current()?>?book_ext_action=discard&amp;requests[]=<?=$request['id']?>" title="Отклонить">&times;</a></td>
 			</tr>

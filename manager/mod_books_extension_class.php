@@ -17,7 +17,7 @@ class Book_extension  extends JObject {
 	 * Подпись в уведомительном письме электропочты
 	 * @var string
 	 */
-	private static $email_signature = '<br><p>-- <br>Качканарская городская библиотека им. Ф. Т. Селянина<br>Адрес: 5а мкр.&nbsp;7а&nbsp;дом. Тел: (+7 34341)&nbsp;6–02–99.<br>Сайт: <a href="http://gorbib.org.ru">http://gorbib.org.ru</a></p>';
+	private static $email_signature = '<br><p><em>В детской библиотеке на младшем и старшем абонементах:</em><br>Книги и журналы продлеваются на <b>2 недели</b>.<br><br><em>Во взрослой библиотеке:</em><br>Книги — <b>1 месяц</b>, <br>Журналы — <b>1 неделя</b>.</p><p>-- <br> Качканарская городская библиотека им. Ф. Т. Селянина<br>Адрес: 5а мкр.&nbsp;7а&nbsp;дом. Тел: (+7 34341)&nbsp;6–02–99.<br>Сайт: <a href="http://gorbib.org.ru">http://gorbib.org.ru</a></p>';
 
 	/**
 	 * Имя таблицы с данными модуля в базе данных
@@ -31,6 +31,12 @@ class Book_extension  extends JObject {
 	 * @var boolean
 	 */
 	private static $removeOnProcessed = false;
+
+	/**
+	 * Нужен ли абонемент (одним он нужен, Другим нет. Оставлю на всякий случай)
+	 * @var boolean
+	 */
+	public $enable_abonement = false;
 
 
 	/**
@@ -62,19 +68,19 @@ class Book_extension  extends JObject {
 			// Продлено
 			'accepted' => array(
 				'subject' => 'Книга продлена',
-				'text'    => "<p>Здравствуйте, $name. </p><br><p>Мы обработали Вашу заявку и продлили книгу <i>{$requestData['book']}</i>. Приятного чтения.</p>"
+				'text'    => "<p>Здравствуйте, $name. </p><p>Мы обработали Вашу заявку и продлили книгу <i>{$requestData['book']}</i>. Приятного чтения.</p>"
 			),
 			// Не продлено
 			'rejected' => array(
 				'subject' => 'Книга НЕ продлена',
-				'text'    => "<p>Здравствуйте, $name. </p><br><p>К сожалению, мы не продлили книгу <i>{$requestData['book']}</i>. Для получения подробной информации свяжитесь с библиотекой.</p>"
+				'text'    => "<p>Здравствуйте, $name. </p><p>К сожалению, мы не продлили книгу <i>{$requestData['book']}</i>. Для получения подробной информации свяжитесь с библиотекой.</p>"
 		));
-		
+
 		$statusAsText = ( $accepted? 'accepted' :'rejected' );
 
 
 		// Заголовки письма
-		$headers  = "From: gorbib@yandex.ru\r\n"; 
+		$headers  = "From: gorbib@yandex.ru\r\n";
 		$headers .= "Content-type: text/html;charset=utf-8\r\n";
 
 		// Собственно, отправка
@@ -95,7 +101,7 @@ class Book_extension  extends JObject {
 	public function processRequest($requestID, $accepted = true) {
 
 		$requestID = intval($requestID);
-		
+
 		if (self::$removeOnProcessed) {
 			$this->_db->setQuery("DELETE FROM `#__{$this->_db_tablename}` WHERE `id` = '$requestID';");
 		} else {
@@ -128,7 +134,7 @@ class Book_extension  extends JObject {
 	public function getRequests($limit = 5, $withProcessed = false) {
 
 		$this->_db->setQuery("SELECT * FROM `#__{$this->_db_tablename}` ".(!$withProcessed? "WHERE `processed` = '0'": '').($limit? " LIMIT $limit": '').';');
-		
+
 		return $this->_db->loadAssocList();
 	}
 
